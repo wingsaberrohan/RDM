@@ -1,0 +1,2 @@
+# Build-time dependencies for PyInstaller (CI and local builds)
+pyinstaller==6.11.1

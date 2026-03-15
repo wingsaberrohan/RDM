@@ -1,0 +1,140 @@
+# RDM - Build Windows .exe and macOS .dmg
+# Triggers: push to main, version tags v*, manual dispatch
+
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Get version
+        id: version
+        run: |
+          python -c "import sys; sys.path.insert(0, '.'); import rdm; print(rdm.__version__)" > version.txt
+          echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+          echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-build.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --noconfirm rdm.spec
+          dir dist
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RDM-Windows-${{ env.VERSION }}
+          path: |
+            dist/RDM.exe
+
+  build-macos:
+    runs-on: macos-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Get version
+        id: version
+        run: |
+          python -c "import sys; sys.path.insert(0, '.'); import rdm; print(rdm.__version__)" > version.txt
+          echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+          echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'requirements-build.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --noconfirm rdm.spec
+          ls -la dist/
+
+      - name: Create DMG
+        run: |
+          VERSION=$(cat version.txt)
+          hdiutil create -volname "RDM" -srcfolder "dist/RDM.app" -ov -format UDZO "dist/RDM-$VERSION.dmg"
+          ls -la dist/*.dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RDM-macOS-${{ env.VERSION }}
+          path: dist/RDM-*.dmg
+
+  release:
+    needs: [build-windows, build-macos]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: RDM-Windows-${{ needs.build-windows.outputs.version }}
+          path: artifacts/windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: RDM-macOS-${{ needs.build-macos.outputs.version }}
+          path: artifacts/macos
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          release_id: ${{ github.event.release.id }}
+          files: |
+            artifacts/windows/*
+            artifacts/macos/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

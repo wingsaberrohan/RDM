@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "RDM - Rohan's Download Manager",
+  "version": "1.0",
+  "description": "Send download links to RDM",
+  "permissions": ["activeTab", "storage", "contextMenus"],
+  "host_permissions": ["http://127.0.0.1:8765/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Send to RDM"
+  }
+}

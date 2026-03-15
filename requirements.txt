@@ -1,0 +1,7 @@
+# RDM - Rohan's Download Manager
+# Python 3.11+
+
+PySide6>=6.6.0
+aria2p>=0.12.0
+flask>=3.0.0
+requests>=2.31.0
