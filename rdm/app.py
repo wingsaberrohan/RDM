@@ -23,7 +23,7 @@ def run_app() -> int:
 
     LOCK_DIR.mkdir(parents=True, exist_ok=True)
     lock_file = QLockFile(str(LOCK_FILE))
-    if not lock_file.tryLock():
+    if not lock_file.tryLock(0):
         QMessageBox.warning(
             None,
             "RDM",
